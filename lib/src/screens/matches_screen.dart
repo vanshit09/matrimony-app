@@ -7,6 +7,7 @@ import 'dart:io';
 import '../models/match.dart';
 import '../providers/chat_provider.dart';
 import '../providers/auth_provider.dart';
+import '../widgets/romantic_background.dart';
 
 class MatchesScreen extends StatefulWidget {
   const MatchesScreen({super.key});
@@ -56,68 +57,70 @@ class _MatchesScreenState extends State<MatchesScreen> {
           ),
         ],
       ),
-      body: Consumer<ChatProvider>(
-        builder: (context, chatProvider, child) {
-          if (chatProvider.isLoading) {
-            return const Center(child: CircularProgressIndicator());
-          }
+      body: RomanticBackground(
+        child: Consumer<ChatProvider>(
+          builder: (context, chatProvider, child) {
+            if (chatProvider.isLoading) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-          if (chatProvider.error != null) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.error, size: 64, color: Colors.red),
-                  const SizedBox(height: 16),
-                  Text(
-                    chatProvider.error!,
-                    style: const TextStyle(color: Colors.red),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () {
-                      chatProvider.loadMatches();
-                    },
-                    child: const Text('Retry'),
-                  ),
-                ],
-              ),
+            if (chatProvider.error != null) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.error, size: 64, color: Colors.red),
+                    const SizedBox(height: 16),
+                    Text(
+                      chatProvider.error!,
+                      style: const TextStyle(color: Colors.red),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: () {
+                        chatProvider.loadMatches();
+                      },
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            final matches = chatProvider.matches;
+            if (matches.isEmpty) {
+              return const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.favorite_border, size: 64, color: Colors.grey),
+                    SizedBox(height: 16),
+                    Text(
+                      'No matches yet',
+                      style: TextStyle(color: Colors.grey, fontSize: 18),
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      'Keep swiping to find your perfect match!',
+                      style: TextStyle(color: Colors.grey),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            return ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: matches.length,
+              itemBuilder: (context, index) {
+                final match = matches[index];
+                return _buildMatchCard(match, chatProvider);
+              },
             );
-          }
-
-          final matches = chatProvider.matches;
-          if (matches.isEmpty) {
-            return const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.favorite_border, size: 64, color: Colors.grey),
-                  SizedBox(height: 16),
-                  Text(
-                    'No matches yet',
-                    style: TextStyle(color: Colors.grey, fontSize: 18),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    'Keep swiping to find your perfect match!',
-                    style: TextStyle(color: Colors.grey),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            );
-          }
-
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: matches.length,
-            itemBuilder: (context, index) {
-              final match = matches[index];
-              return _buildMatchCard(match, chatProvider);
-            },
-          );
-        },
+          },
+        ),
       ),
     );
   }
@@ -162,9 +165,12 @@ class _MatchesScreenState extends State<MatchesScreen> {
                     backgroundImage:
                         otherUserProfile?.photoUrl.isNotEmpty == true
                             ? (otherUserProfile!.photoUrl.startsWith('/')
-                                ? FileImage(File(otherUserProfile.photoUrl))
-                                : CachedNetworkImageProvider(
-                                    otherUserProfile.photoUrl))
+                                ? (File(otherUserProfile.photoUrl).existsSync()
+                                    ? FileImage(File(otherUserProfile.photoUrl))
+                                    : null)
+                                : (Uri.tryParse(otherUserProfile.photoUrl)?.hasScheme == true
+                                    ? CachedNetworkImageProvider(otherUserProfile.photoUrl)
+                                    : null))
                             : null,
                     child: otherUserProfile?.photoUrl.isEmpty != false
                         ? const Icon(Icons.person, size: 30)

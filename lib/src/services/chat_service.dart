@@ -35,13 +35,25 @@ class ChatService {
       // Create a chat room ID for the two users
       final chatRoomId = _generateChatRoomId(currentUser.uid, receiverId);
 
-      // Save message to Firestore in the chat room
+      // Ensure chat room exists
+      await ensureChatRoom(currentUser.uid, receiverId);
+
+      // Ensure chat room doc exists with participants
+      await _firestore.collection('chat_rooms').doc(chatRoomId).set({
+        'participants': [currentUser.uid, receiverId],
+        'updatedAt': DateTime.now().toIso8601String(),
+      }, SetOptions(merge: true));
+
+      // Save message to Firestore in the chat room with participants field for rules
       await _firestore
           .collection('chat_rooms')
           .doc(chatRoomId)
           .collection('messages')
           .doc(messageId)
-          .set(chatMessage.toMap());
+          .set({
+            ...chatMessage.toMap(),
+            'participants': [currentUser.uid, receiverId],
+          });
 
       // Update match with last message info
       await _updateMatchLastMessage(currentUser.uid, receiverId, messageId);
@@ -189,6 +201,13 @@ class ChatService {
   }
 
   // Helper methods
+  static Future<void> ensureChatRoom(String userId1, String userId2) async {
+    final chatRoomId = _generateChatRoomId(userId1, userId2);
+    await _firestore.collection('chat_rooms').doc(chatRoomId).set({
+      'participants': [userId1, userId2],
+      'updatedAt': DateTime.now().toIso8601String(),
+    }, SetOptions(merge: true));
+  }
   static String _generateMatchId(String userId1, String userId2) {
     final sortedIds = [userId1, userId2]..sort();
     return '${sortedIds[0]}_${sortedIds[1]}';
@@ -239,7 +258,7 @@ class ChatService {
   static Future<void> _updateUserMatches(
       String userId, String matchUserId) async {
     try {
-      await _firestore.collection('profiles').doc(userId).update({
+      await _firestore.collection('users').doc(userId).update({
         'matches': FieldValue.arrayUnion([matchUserId]),
         'updatedAt': DateTime.now().toIso8601String(),
       });
@@ -251,7 +270,7 @@ class ChatService {
   static Future<void> _removeUserMatch(
       String userId, String matchUserId) async {
     try {
-      await _firestore.collection('profiles').doc(userId).update({
+      await _firestore.collection('users').doc(userId).update({
         'matches': FieldValue.arrayRemove([matchUserId]),
         'updatedAt': DateTime.now().toIso8601String(),
       });

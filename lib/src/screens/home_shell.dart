@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
 import '../providers/profile_provider.dart';
-import 'admin/admin_panel_screen.dart';
 import 'likings_screen.dart';
 import 'matching_screen.dart';
 import 'dashboard_screen.dart';
@@ -31,16 +30,14 @@ class _HomeShellState extends State<HomeShell> {
       if (uid != null && profiles.myProfile == null) {
         profiles.loadMyProfile(uid);
       }
+      // Start profiles stream only after login to satisfy Firestore rules
+      profiles.ensureProfilesStream();
     });
   }
 
   @override
   Widget build(BuildContext context) {
     final profiles = context.watch<ProfileProvider>();
-    final isAdmin = (profiles.myProfile?.role == 'admin') ||
-        (profiles.allProfiles.any((p) =>
-            p.uid == context.read<AuthProvider>().currentUser?.uid &&
-            p.role == 'admin'));
 
     // Check if profile needs to be completed
     if (!profiles.loading && !profiles.isProfileComplete(profiles.myProfile)) {
@@ -71,7 +68,6 @@ class _HomeShellState extends State<HomeShell> {
       const MatchingScreen(),
       const MatchesScreen(),
       const MyProfileScreen(),
-      if (isAdmin) const AdminPanelScreen(),
     ];
 
     return Scaffold(
@@ -87,9 +83,6 @@ class _HomeShellState extends State<HomeShell> {
           const NavigationDestination(icon: Icon(Icons.chat), label: 'Matches'),
           const NavigationDestination(
               icon: Icon(Icons.person), label: 'Profile'),
-          if (isAdmin)
-            const NavigationDestination(
-                icon: Icon(Icons.admin_panel_settings), label: 'Admin'),
         ],
         onDestinationSelected: (i) => setState(() => _index = i),
       ),

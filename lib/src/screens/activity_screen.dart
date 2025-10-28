@@ -24,6 +24,8 @@ class ActivityScreen extends StatelessWidget {
                   return Center(child: Text('Error: ${snapshot.error}'));
                 }
                 final list = (snapshot.data ?? [])
+                    .where((a) => (a['message']?.toString() ?? '').startsWith('You '))
+                    .toList()
                   ..sort((a, b) => (b['createdAt'] ?? '')
                       .toString()
                       .compareTo((a['createdAt'] ?? '').toString()));

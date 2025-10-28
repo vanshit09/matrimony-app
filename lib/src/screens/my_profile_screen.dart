@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../models/user_profile.dart';
 import '../providers/auth_provider.dart';
 import '../providers/profile_provider.dart';
+import '../widgets/romantic_background.dart';
 
 class MyProfileScreen extends StatelessWidget {
   const MyProfileScreen({super.key});
@@ -34,9 +35,10 @@ class MyProfileScreen extends StatelessWidget {
             : NetworkImage(me.photoUrl));
 
     return Scaffold(
-      body: SingleChildScrollView(
+      body: RomanticBackground(
         padding: const EdgeInsets.all(16),
-        child: Column(
+        child: SingleChildScrollView(
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Center(
@@ -79,6 +81,7 @@ class MyProfileScreen extends StatelessWidget {
               ),
             ),
           ],
+          ),
         ),
       ),
     );

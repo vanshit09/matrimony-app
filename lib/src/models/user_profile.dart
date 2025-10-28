@@ -6,6 +6,7 @@ class UserProfile {
   final String role; // user or admin
   final int age;
   final String gender;
+  final String preference; // which gender to see: Male or Female
   final String bio;
   final String occupation;
   final String location;
@@ -24,6 +25,7 @@ class UserProfile {
     required this.role,
     required this.age,
     required this.gender,
+    required this.preference,
     required this.bio,
     required this.occupation,
     required this.location,
@@ -44,6 +46,7 @@ class UserProfile {
       role: map['role'] ?? 'user',
       age: (map['age'] ?? 0) as int,
       gender: map['gender'] ?? '',
+      preference: map['preference'] ?? 'Female',
       bio: map['bio'] ?? '',
       occupation: map['occupation'] ?? '',
       location: map['location'] ?? '',
@@ -65,6 +68,7 @@ class UserProfile {
       'role': role,
       'age': age,
       'gender': gender,
+      'preference': preference,
       'bio': bio,
       'occupation': occupation,
       'location': location,

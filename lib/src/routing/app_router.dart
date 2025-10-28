@@ -5,7 +5,6 @@ import '../screens/auth/register_screen.dart';
 import '../screens/dashboard_screen.dart';
 import '../screens/profile_detail_screen.dart';
 import '../screens/profile_edit_screen.dart';
-import '../screens/admin/admin_panel_screen.dart';
 import '../screens/activity_screen.dart';
 import '../screens/likings_screen.dart';
 import '../screens/home_shell.dart';
@@ -35,9 +34,6 @@ class AppRouter {
       case '/profile_edit':
         return MaterialPageRoute(
             builder: (_) => const ProfileEditScreen(), settings: settings);
-      case '/admin':
-        return MaterialPageRoute(
-            builder: (_) => const AdminPanelScreen(), settings: settings);
       case '/activity':
         return MaterialPageRoute(
             builder: (_) => const ActivityScreen(), settings: settings);

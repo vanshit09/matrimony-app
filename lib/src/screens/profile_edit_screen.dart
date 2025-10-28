@@ -3,11 +3,11 @@ import 'package:provider/provider.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
 import '../models/user_profile.dart';
 import '../providers/auth_provider.dart';
 import '../providers/profile_provider.dart';
-// ... existing code ...
 
 class ProfileEditScreen extends StatefulWidget {
   const ProfileEditScreen({super.key});
@@ -24,8 +24,10 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   final TextEditingController _location = TextEditingController();
   final TextEditingController _income = TextEditingController();
   String _gender = 'Male';
+  String _preference = 'Female';
   bool _saving = false;
   File? _localPhotoFile;
+  bool _initializedFromProfile = false;
 
   Future<void> _pickLocalPhoto() async {
     final picker = ImagePicker();
@@ -54,14 +56,16 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     if (uid != null) {
       profiles.loadMyProfile(uid).then((_) {
         final p = profiles.myProfile;
-        if (p != null) {
+        if (p != null && !_initializedFromProfile) {
           _name.text = p.name;
           _age.text = p.age.toString();
           _bio.text = p.bio;
           _gender = p.gender;
+          _preference = p.preference;
           _occupation.text = p.occupation;
           _location.text = p.location;
           _income.text = p.income;
+          _initializedFromProfile = true;
           setState(() {});
         }
       });
@@ -85,14 +89,29 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                 children: [
                   CircleAvatar(
                     radius: 32,
-                    backgroundImage: _localPhotoFile != null
-                        ? FileImage(_localPhotoFile!)
-                        : (profiles.myProfile?.photoUrl.isNotEmpty == true &&
-                                profiles.myProfile!.photoUrl.startsWith('/'))
-                            ? FileImage(File(profiles.myProfile!.photoUrl))
-                            : null,
+                    backgroundImage: () {
+                      ImageProvider<Object>? provider;
+                      if (_localPhotoFile != null) {
+                        provider = FileImage(_localPhotoFile!) as ImageProvider<Object>;
+                      } else {
+                        final url = profiles.myProfile?.photoUrl ?? '';
+                        if (url.isNotEmpty) {
+                          if (url.startsWith('/')) {
+                            final f = File(url);
+                            if (f.existsSync()) {
+                              provider = FileImage(f) as ImageProvider<Object>;
+                            }
+                          } else if (Uri.tryParse(url)?.hasScheme == true) {
+                            provider = NetworkImage(url) as ImageProvider<Object>;
+                          }
+                        }
+                      }
+                      return provider;
+                    }(),
                     child: (_localPhotoFile == null &&
-                            (profiles.myProfile?.photoUrl.isEmpty ?? true))
+                            ((profiles.myProfile?.photoUrl.isEmpty ?? true) ||
+                                (profiles.myProfile?.photoUrl.startsWith('/') == true &&
+                                    !File(profiles.myProfile!.photoUrl).existsSync())))
                         ? const Icon(Icons.person)
                         : null,
                   ),
@@ -119,10 +138,19 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                 items: const [
                   DropdownMenuItem(value: 'Male', child: Text('Male')),
                   DropdownMenuItem(value: 'Female', child: Text('Female')),
-                  DropdownMenuItem(value: 'Other', child: Text('Other')),
                 ],
                 onChanged: (v) => setState(() => _gender = v ?? 'Male'),
                 decoration: const InputDecoration(labelText: 'Gender'),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                value: _preference,
+                items: const [
+                  DropdownMenuItem(value: 'Male', child: Text('See only Male')),
+                  DropdownMenuItem(value: 'Female', child: Text('See only Female')),
+                ],
+                onChanged: (v) => setState(() => _preference = v ?? 'Female'),
+                decoration: const InputDecoration(labelText: 'Preference'),
               ),
               const SizedBox(height: 12),
               TextField(
@@ -152,8 +180,21 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                           _saving = true;
                           setState(() {});
                           String photoUrl = profiles.myProfile?.photoUrl ?? '';
-                          if (_localPhotoFile != null) {
-                            photoUrl = _localPhotoFile!.path;
+                          if (_localPhotoFile != null && uid != null) {
+                            try {
+                              final storageRef = FirebaseStorage.instance
+                                  .ref()
+                                  .child('profile_photos')
+                                  .child('$uid.jpg');
+                              await storageRef.putFile(
+                                _localPhotoFile!,
+                                SettableMetadata(contentType: 'image/jpeg'),
+                              );
+                              photoUrl = await storageRef.getDownloadURL();
+                            } catch (e) {
+                              // Fallback to local path if upload fails (still allows local preview)
+                              photoUrl = _localPhotoFile!.path;
+                            }
                           }
                           final profile = UserProfile(
                             uid: uid,
@@ -163,6 +204,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                             role: 'user',
                             age: int.tryParse(_age.text) ?? 18,
                             gender: _gender,
+                            preference: _preference,
                             bio: _bio.text.trim(),
                             occupation: _occupation.text.trim(),
                             location: _location.text.trim(),

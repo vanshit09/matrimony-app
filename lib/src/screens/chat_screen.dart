@@ -78,8 +78,12 @@ class _ChatScreenState extends State<ChatScreen> {
               radius: 20,
               backgroundImage: widget.otherUserPhotoUrl.isNotEmpty
                   ? (widget.otherUserPhotoUrl.startsWith('/')
-                      ? FileImage(File(widget.otherUserPhotoUrl))
-                      : CachedNetworkImageProvider(widget.otherUserPhotoUrl))
+                      ? (File(widget.otherUserPhotoUrl).existsSync()
+                          ? FileImage(File(widget.otherUserPhotoUrl))
+                          : null)
+                      : (Uri.tryParse(widget.otherUserPhotoUrl)?.hasScheme == true
+                          ? CachedNetworkImageProvider(widget.otherUserPhotoUrl)
+                          : null))
                   : null,
               child: widget.otherUserPhotoUrl.isEmpty
                   ? const Icon(Icons.person)
@@ -203,7 +207,9 @@ class _ChatScreenState extends State<ChatScreen> {
               radius: 16,
               backgroundImage: widget.otherUserPhotoUrl.isNotEmpty
                   ? (widget.otherUserPhotoUrl.startsWith('/')
-                      ? FileImage(File(widget.otherUserPhotoUrl))
+                      ? (File(widget.otherUserPhotoUrl).existsSync()
+                          ? FileImage(File(widget.otherUserPhotoUrl))
+                          : null)
                       : CachedNetworkImageProvider(widget.otherUserPhotoUrl))
                   : null,
               child: widget.otherUserPhotoUrl.isEmpty
@@ -267,15 +273,31 @@ class _ChatScreenState extends State<ChatScreen> {
                           ?.photoUrl
                           .isNotEmpty ==
                       true
-                  ? (context
+                  ? ((context
                           .watch<ProfileProvider>()
                           .myProfile!
                           .photoUrl
-                          .startsWith('/')
-                      ? FileImage(File(
-                          context.watch<ProfileProvider>().myProfile!.photoUrl))
-                      : CachedNetworkImageProvider(
-                          context.watch<ProfileProvider>().myProfile!.photoUrl))
+                          .startsWith('/') &&
+                      File(context
+                              .watch<ProfileProvider>()
+                              .myProfile!
+                              .photoUrl)
+                          .existsSync()
+                      ? FileImage(File(context
+                          .watch<ProfileProvider>()
+                          .myProfile!
+                          .photoUrl))
+                      : (Uri.tryParse(context
+                                      .watch<ProfileProvider>()
+                                      .myProfile!
+                                      .photoUrl)
+                                  ?.hasScheme ==
+                              true
+                          ? CachedNetworkImageProvider(context
+                              .watch<ProfileProvider>()
+                              .myProfile!
+                              .photoUrl)
+                          : null)))
                   : null,
               child: context
                           .watch<ProfileProvider>()

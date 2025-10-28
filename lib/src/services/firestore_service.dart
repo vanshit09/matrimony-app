@@ -32,22 +32,13 @@ class FirestoreService {
       {required String fromUid, required String toUid}) async {
     return _db.runTransaction((tx) async {
       final fromRef = users.doc(fromUid);
-      final toRef = users.doc(toUid);
       final fromSnap = await tx.get(fromRef);
-      final toSnap = await tx.get(toRef);
-      if (!fromSnap.exists || !toSnap.exists) return;
+      if (!fromSnap.exists) return;
       final fromLikes =
           List<String>.from((fromSnap.data()!['likes'] ?? []) as List);
-      final toLikedBy =
-          List<String>.from((toSnap.data()!['likedBy'] ?? []) as List);
       if (!fromLikes.contains(toUid)) fromLikes.add(toUid);
-      if (!toLikedBy.contains(fromUid)) toLikedBy.add(fromUid);
       tx.update(fromRef,
           {'likes': fromLikes, 'updatedAt': DateTime.now().toIso8601String()});
-      tx.update(toRef, {
-        'likedBy': toLikedBy,
-        'updatedAt': DateTime.now().toIso8601String()
-      });
     });
   }
 
@@ -55,22 +46,13 @@ class FirestoreService {
       {required String fromUid, required String toUid}) async {
     return _db.runTransaction((tx) async {
       final fromRef = users.doc(fromUid);
-      final toRef = users.doc(toUid);
       final fromSnap = await tx.get(fromRef);
-      final toSnap = await tx.get(toRef);
-      if (!fromSnap.exists || !toSnap.exists) return;
+      if (!fromSnap.exists) return;
       final fromLikes =
           List<String>.from((fromSnap.data()!['likes'] ?? []) as List);
-      final toLikedBy =
-          List<String>.from((toSnap.data()!['likedBy'] ?? []) as List);
       fromLikes.remove(toUid);
-      toLikedBy.remove(fromUid);
       tx.update(fromRef,
           {'likes': fromLikes, 'updatedAt': DateTime.now().toIso8601String()});
-      tx.update(toRef, {
-        'likedBy': toLikedBy,
-        'updatedAt': DateTime.now().toIso8601String()
-      });
     });
   }
 

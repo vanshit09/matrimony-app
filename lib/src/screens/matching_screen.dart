@@ -7,6 +7,7 @@ import '../providers/auth_provider.dart';
 import '../providers/profile_provider.dart';
 import '../providers/chat_provider.dart';
 import '../models/user_profile.dart';
+import '../widgets/romantic_background.dart';
 
 class MatchingScreen extends StatelessWidget {
   const MatchingScreen({super.key});
@@ -45,7 +46,8 @@ class MatchingScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Mutual Matches'),
       ),
-      body: mutualMatches.isEmpty
+      body: RomanticBackground(
+        child: mutualMatches.isEmpty
           ? const Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -74,11 +76,15 @@ class MatchingScreen extends StatelessWidget {
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   child: ListTile(
                     leading: CircleAvatar(
-                      backgroundImage: user.photoUrl.isEmpty
-                          ? null
-                          : (user.photoUrl.startsWith('/')
-                              ? Image.file(File(user.photoUrl)).image
-                              : CachedNetworkImageProvider(user.photoUrl)),
+                      backgroundImage: user.photoUrl.isNotEmpty
+                          ? (user.photoUrl.startsWith('/')
+                              ? (File(user.photoUrl).existsSync()
+                                  ? FileImage(File(user.photoUrl))
+                                  : null)
+                              : (Uri.tryParse(user.photoUrl)?.hasScheme == true
+                                  ? CachedNetworkImageProvider(user.photoUrl)
+                                  : null))
+                          : null,
                       child: user.photoUrl.isEmpty
                           ? Text(user.name.isNotEmpty ? user.name[0] : '?')
                           : null,
@@ -132,6 +138,7 @@ class MatchingScreen extends StatelessWidget {
                 );
               },
             ),
+      ),
     );
   }
 }

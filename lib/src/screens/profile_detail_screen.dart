@@ -4,6 +4,7 @@ import '../models/user_profile.dart';
 import 'package:provider/provider.dart';
 import '../providers/profile_provider.dart';
 import '../providers/auth_provider.dart';
+import '../widgets/romantic_background.dart';
 
 class ProfileDetailScreen extends StatelessWidget {
   const ProfileDetailScreen({super.key});
@@ -53,12 +54,17 @@ class ProfileDetailScreen extends StatelessWidget {
     }
 
     // Get current user profile
+    // Prefer myProfile (updated optimistically) to reflect like/unlike instantly
     UserProfile? currentUserProfile;
-    try {
-      currentUserProfile = profiles.allProfiles
-          .firstWhere((p) => p.uid == auth.currentUser?.uid);
-    } catch (_) {
+    final myUid = auth.currentUser?.uid;
+    if (profiles.myProfile != null && profiles.myProfile!.uid == myUid) {
       currentUserProfile = profiles.myProfile;
+    } else {
+      try {
+        currentUserProfile = profiles.allProfiles.firstWhere((p) => p.uid == myUid);
+      } catch (_) {
+        currentUserProfile = profiles.myProfile;
+      }
     }
 
     if (currentUserProfile == null) {
@@ -67,56 +73,77 @@ class ProfileDetailScreen extends StatelessWidget {
       );
     }
 
-    // Check mutual like status
-    final hasLiked = currentUserProfile.likes.contains(user.uid);
-    final isLikedBack = user.likes.contains(currentUserProfile.uid);
-    final isMutualMatch = hasLiked && isLikedBack;
+    // Initial statuses (used as fallback); UI below uses Consumer to stay reactive
+    final initialHasLiked = currentUserProfile.likes.contains(user.uid);
+    final initialIsLikedBack = user.likes.contains(currentUserProfile.uid);
+    final initialIsMutualMatch = initialHasLiked && initialIsLikedBack;
 
     return Scaffold(
       appBar: AppBar(
         title: Text(user.name),
         actions: [
           if (auth.currentUser?.uid != user.uid)
-            IconButton(
-              icon: Icon(
-                hasLiked ? Icons.favorite : Icons.favorite_border,
-                color: hasLiked ? Colors.red : null,
-              ),
-              onPressed: () async {
-                if (auth.currentUser == null) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Please login first')),
-                  );
-                  return;
+            Consumer<ProfileProvider>(
+              builder: (context, p, _) {
+                UserProfile? my = p.myProfile;
+                if (my == null) {
+                  try {
+                    my = p.allProfiles.firstWhere((e) => e.uid == auth.currentUser?.uid);
+                  } catch (_) {}
                 }
-
-                final myUid = auth.currentUser!.uid;
-                if (hasLiked) {
-                  await context.read<ProfileProvider>().unlike(myUid, user.uid);
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Removed like for ${user.name}')),
-                    );
-                  }
-                } else {
-                  await context.read<ProfileProvider>().like(myUid, user.uid);
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Liked ${user.name}')),
-                    );
-                  }
-                }
+                final liked = my?.likes.contains(user.uid) ?? false;
+                return IconButton(
+                  icon: Icon(
+                    liked ? Icons.favorite : Icons.favorite_border,
+                    color: liked ? Colors.red : null,
+                  ),
+                  onPressed: () async {
+                    if (auth.currentUser == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Please login first')),
+                      );
+                      return;
+                    }
+                    final myUid = auth.currentUser!.uid;
+                    bool ok;
+                    if (liked) {
+                      ok = await context.read<ProfileProvider>().unlike(myUid, user.uid);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(ok ? 'Removed like for ${user.name}' : 'Failed to unlike ${user.name}')),
+                        );
+                      }
+                    } else {
+                      ok = await context.read<ProfileProvider>().like(myUid, user.uid);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(ok ? 'Liked ${user.name}' : 'Failed to like ${user.name}')),
+                        );
+                      }
+                    }
+                  },
+                );
               },
             ),
         ],
       ),
-      body: SingleChildScrollView(
+      body: RomanticBackground(
         padding: const EdgeInsets.all(16),
-        child: Column(
+        child: SingleChildScrollView(
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (isMutualMatch)
-              Card(
+            Consumer<ProfileProvider>(builder: (context, p, _) {
+              UserProfile? my = p.myProfile;
+              if (my == null) {
+                try {
+                  my = p.allProfiles.firstWhere((e) => e.uid == auth.currentUser?.uid);
+                } catch (_) {}
+              }
+              final liked = my?.likes.contains(user.uid) ?? initialHasLiked;
+              final isMutual = liked && initialIsLikedBack;
+              if (!isMutual) return const SizedBox.shrink();
+              return Card(
                 color: Colors.green.shade100,
                 child: Padding(
                   padding: const EdgeInsets.all(16),
@@ -134,7 +161,8 @@ class ProfileDetailScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-              ),
+              );
+            }),
             const SizedBox(height: 24),
 
             // Profile Summary Card
@@ -198,50 +226,64 @@ class ProfileDetailScreen extends StatelessWidget {
 
             // Match Status
             if (auth.currentUser?.uid != user.uid)
-              _buildSection(
-                'Match Status',
-                [
-                  ListTile(
-                    leading: Icon(
-                      isMutualMatch
-                          ? Icons.favorite
-                          : hasLiked
-                              ? Icons.favorite
-                              : Icons.favorite_border,
-                      color: isMutualMatch
-                          ? Colors.red
-                          : hasLiked
-                              ? Colors.orange
-                              : Colors.grey,
-                    ),
-                    title: Text(
-                      isMutualMatch
-                          ? 'It\'s a Match! 💕'
-                          : hasLiked
-                              ? 'You liked this profile'
-                              : isLikedBack
-                                  ? 'This person likes you'
-                                  : 'No interaction yet',
-                      style: TextStyle(
-                        color: isMutualMatch ? Colors.red : null,
-                        fontWeight:
-                            isMutualMatch ? FontWeight.bold : FontWeight.normal,
+              Consumer<ProfileProvider>(builder: (context, p, _) {
+                UserProfile? my = p.myProfile;
+                if (my == null) {
+                  try {
+                    my = p.allProfiles.firstWhere((e) => e.uid == auth.currentUser?.uid);
+                  } catch (_) {}
+                }
+                final liked = my?.likes.contains(user.uid) ?? initialHasLiked;
+                final isMutual = liked && initialIsLikedBack;
+                return _buildSection(
+                  'Match Status',
+                  [
+                    ListTile(
+                      leading: Icon(
+                        isMutual
+                            ? Icons.favorite
+                            : liked
+                                ? Icons.favorite
+                                : Icons.favorite_border,
+                        color: isMutual
+                            ? Colors.red
+                            : liked
+                                ? Colors.orange
+                                : Colors.grey,
+                      ),
+                      title: Text(
+                        isMutual
+                            ? 'It\'s a Match! 💕'
+                            : liked
+                                ? 'You liked this profile'
+                                : initialIsLikedBack
+                                    ? 'This person likes you'
+                                    : 'No interaction yet',
+                        style: TextStyle(
+                          color: isMutual ? Colors.red : null,
+                          fontWeight:
+                              isMutual ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      ),
+                      subtitle: Text(
+                        isMutual
+                            ? 'You can now start chatting!'
+                            : 'Like this profile to show your interest',
                       ),
                     ),
-                    subtitle: Text(
-                      isMutualMatch
-                          ? 'You can now start chatting!'
-                          : 'Like this profile to show your interest',
-                    ),
-                  ),
-                ],
-              ),
+                  ],
+                );
+              }),
 
             const SizedBox(height: 16),
 
             // Match Status
-            if (isMutualMatch)
-              const Card(
+            Consumer<ProfileProvider>(builder: (context, p, _) {
+              final my = p.myProfile;
+              final liked = my?.likes.contains(user.uid) ?? initialHasLiked;
+              final isMutual = liked && initialIsLikedBack;
+              if (!isMutual) return const SizedBox.shrink();
+              return const Card(
                 color: Colors.green,
                 child: Padding(
                   padding: EdgeInsets.all(16),
@@ -260,8 +302,10 @@ class ProfileDetailScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-              ),
+              );
+            }),
           ],
+          ),
         ),
       ),
     );
@@ -287,13 +331,19 @@ class ProfileDetailScreen extends StatelessWidget {
     if (url.startsWith('/')) {
       return CircleAvatar(
         radius: 50,
-        backgroundImage: FileImage(File(url)),
+        backgroundImage:
+            File(url).existsSync() ? FileImage(File(url)) : null,
+        child: File(url).existsSync() ? null : const Icon(Icons.person, size: 40),
       );
     }
 
     return CircleAvatar(
       radius: 50,
-      backgroundImage: NetworkImage(url),
+      backgroundImage:
+          (Uri.tryParse(url)?.hasScheme == true) ? NetworkImage(url) : null,
+      child: (Uri.tryParse(url)?.hasScheme == true)
+          ? null
+          : const Icon(Icons.person, size: 40),
     );
   }
 

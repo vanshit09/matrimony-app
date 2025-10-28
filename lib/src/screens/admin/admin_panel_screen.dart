@@ -22,6 +22,7 @@ class AdminPanelScreen extends StatelessWidget {
         role: 'user',
         age: 0,
         gender: '',
+        preference: 'Female',
         bio: '',
         occupation: '',
         location: '',

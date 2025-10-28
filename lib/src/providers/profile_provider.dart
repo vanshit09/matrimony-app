@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../models/user_profile.dart';
 import '../services/firestore_service.dart';
@@ -11,9 +12,20 @@ class ProfileProvider extends ChangeNotifier {
   bool loading = false;
   String? error;
 
-  ProfileProvider() {
+  bool _streamStarted = false;
+
+  ProfileProvider();
+
+  void ensureProfilesStream() {
+    if (_streamStarted) return;
+    final current = FirebaseAuth.instance.currentUser;
+    if (current == null) return; // start after login only
+    _streamStarted = true;
     _db.streamAllProfiles().listen((list) {
       allProfiles = list;
+      notifyListeners();
+    }, onError: (e) {
+      error = e.toString();
       notifyListeners();
     });
   }
@@ -60,7 +72,7 @@ class ProfileProvider extends ChangeNotifier {
         p.income.isNotEmpty;
   }
 
-  Future<void> like(String fromUid, String toUid) async {
+  Future<bool> like(String fromUid, String toUid) async {
     // Optimistic update for instant UI feedback
     final previousLikes = List<String>.from(myProfile?.likes ?? const []);
     if (myProfile != null && !myProfile!.likes.contains(toUid)) {
@@ -72,6 +84,7 @@ class ProfileProvider extends ChangeNotifier {
         role: myProfile!.role,
         age: myProfile!.age,
         gender: myProfile!.gender,
+        preference: myProfile!.preference,
         bio: myProfile!.bio,
         occupation: myProfile!.occupation,
         location: myProfile!.location,
@@ -98,6 +111,7 @@ class ProfileProvider extends ChangeNotifier {
               role: myProfile!.role,
               age: myProfile!.age,
               gender: myProfile!.gender,
+              preference: myProfile!.preference,
               bio: myProfile!.bio,
               occupation: myProfile!.occupation,
               location: myProfile!.location,
@@ -111,14 +125,11 @@ class ProfileProvider extends ChangeNotifier {
       notifyListeners();
       rethrow;
     }
-    // Log like activities for both parties
+    // Log like activity only for the actor (do not notify the other user here)
     try {
-      final me = await _db.getUserProfile(fromUid);
       final other = await _db.getUserProfile(toUid);
-      final meName = me?.name ?? fromUid;
       final otherName = other?.name ?? toUid;
       await _db.logActivity(fromUid, 'You liked $otherName');
-      await _db.logActivity(toUid, '$meName liked you');
     } catch (_) {}
     final isMatch = await _db.checkMutualMatch(fromUid, toUid);
     if (isMatch) {
@@ -129,9 +140,10 @@ class ProfileProvider extends ChangeNotifier {
       await _db.logActivity(fromUid, 'You matched with $otherName');
       await _db.logActivity(toUid, 'You matched with $meName');
     }
+    return true;
   }
 
-  Future<void> unlike(String fromUid, String toUid) async {
+  Future<bool> unlike(String fromUid, String toUid) async {
     // Optimistic update for instant UI feedback
     final previousLikes = List<String>.from(myProfile?.likes ?? const []);
     if (myProfile != null && myProfile!.likes.contains(toUid)) {
@@ -144,6 +156,7 @@ class ProfileProvider extends ChangeNotifier {
         role: myProfile!.role,
         age: myProfile!.age,
         gender: myProfile!.gender,
+        preference: myProfile!.preference,
         bio: myProfile!.bio,
         occupation: myProfile!.occupation,
         location: myProfile!.location,
@@ -170,6 +183,7 @@ class ProfileProvider extends ChangeNotifier {
               role: myProfile!.role,
               age: myProfile!.age,
               gender: myProfile!.gender,
+              preference: myProfile!.preference,
               bio: myProfile!.bio,
               occupation: myProfile!.occupation,
               location: myProfile!.location,
@@ -183,14 +197,12 @@ class ProfileProvider extends ChangeNotifier {
       notifyListeners();
       rethrow;
     }
-    // Log unlike activities
+    // Log unlike activity only for the actor
     try {
-      final me = await _db.getUserProfile(fromUid);
       final other = await _db.getUserProfile(toUid);
-      final meName = me?.name ?? fromUid;
       final otherName = other?.name ?? toUid;
       await _db.logActivity(fromUid, 'You unliked $otherName');
-      await _db.logActivity(toUid, '$meName unliked you');
     } catch (_) {}
+    return true;
   }
 }

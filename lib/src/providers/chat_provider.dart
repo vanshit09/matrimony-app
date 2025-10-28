@@ -85,6 +85,14 @@ class ChatProvider with ChangeNotifier {
       _setLoading(true);
       _clearError();
 
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Ensure chat room exists to satisfy Firestore rules
+      await ChatService.ensureChatRoom(currentUser.uid, otherUserId);
+
       // Listen to messages stream
       ChatService.getMessages(otherUserId).listen(
         (messages) {
@@ -111,6 +119,19 @@ class ChatProvider with ChangeNotifier {
   }) async {
     try {
       _clearError();
+
+      // Optimistic UI update
+      final tempMessage = ChatMessage(
+        id: 'local-${DateTime.now().millisecondsSinceEpoch}',
+        senderId: _auth.currentUser?.uid ?? '',
+        receiverId: receiverId,
+        message: message,
+        timestamp: DateTime.now(),
+        messageType: messageType,
+        replyToMessageId: replyToMessageId,
+      );
+      _currentChatMessages = [..._currentChatMessages, tempMessage];
+      notifyListeners();
 
       await ChatService.sendMessage(
         receiverId: receiverId,

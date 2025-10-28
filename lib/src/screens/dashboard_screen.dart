@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../models/user_profile.dart';
 import '../providers/auth_provider.dart';
 import '../providers/profile_provider.dart';
+import '../widgets/romantic_background.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
@@ -16,9 +17,16 @@ class DashboardScreen extends StatelessWidget {
     final profiles = context.watch<ProfileProvider>();
     final myUid = auth.currentUser?.uid;
     
-    // Show all other users except current user
+    // Load my profile; if not available, show loader
+    final me = profiles.myProfile;
+    if (profiles.loading || me == null) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    // Filter: show only users whose gender matches my preference
     final List<UserProfile> list = profiles.allProfiles
         .where((u) => u.uid != myUid)
+        .where((u) => u.gender == me.preference)
         .toList();
 
     if (profiles.loading) {
@@ -36,35 +44,57 @@ class DashboardScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: list.isEmpty
-          ? const Center(
-              child: Text('No profiles available yet'),
-            )
-          : list.isEmpty
-              ? const Center(child: Text('No profiles to show'))
-              : ListView.builder(
-                  itemCount: list.length,
-                  itemBuilder: (context, index) {
-                    final user = list[index];
-                    if (auth.currentUser?.uid == user.uid) {
-                      return const SizedBox.shrink();
-                    }
-                    final bool isLiked =
-                        profiles.myProfile?.likes.contains(user.uid) == true;
-                    return ListTile(
-                      leading: CircleAvatar(
-                        backgroundImage: user.photoUrl.isEmpty
-                            ? null
-                            : (user.photoUrl.startsWith('/')
-                                ? Image.file(
-                                    File(user.photoUrl),
-                                  ).image
-                                : CachedNetworkImageProvider(user.photoUrl)),
-                        child: user.photoUrl.isEmpty
-                            ? Text(user.name.isNotEmpty ? user.name[0] : '?')
-                            : null,
+      body: RomanticBackground(
+        child: list.isEmpty
+            ? const Center(
+                child: Text('No profiles to show'),
+              )
+            : ListView.builder(
+                key: const PageStorageKey('dashboard_list'),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                itemCount: list.length,
+                itemBuilder: (context, index) {
+                  final user = list[index];
+                  final bool isLiked =
+                      profiles.myProfile?.likes.contains(user.uid) == true;
+                  return Card(
+                    elevation: 3,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    margin: const EdgeInsets.symmetric(vertical: 8),
+                    child: ListTile(
+                      leading: Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.08),
+                              blurRadius: 6,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: CircleAvatar(
+                          radius: 24,
+                          backgroundImage: user.photoUrl.isNotEmpty
+                              ? (user.photoUrl.startsWith('/')
+                                  ? (File(user.photoUrl).existsSync()
+                                      ? FileImage(File(user.photoUrl))
+                                      : null)
+                                  : (Uri.tryParse(user.photoUrl)?.hasScheme == true
+                                      ? CachedNetworkImageProvider(user.photoUrl)
+                                      : null))
+                              : null,
+                          child: user.photoUrl.isEmpty
+                              ? Text(user.name.isNotEmpty ? user.name[0] : '?')
+                              : null,
+                        ),
                       ),
-                      title: Text(user.name),
+                      title: Text(
+                        user.name,
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
                       subtitle: Text(
                           '${user.age}, ${user.gender} • ${user.location} • ${user.occupation}'),
                       trailing: Row(
@@ -73,29 +103,33 @@ class DashboardScreen extends StatelessWidget {
                           IconButton(
                             icon: Icon(
                               isLiked ? Icons.favorite : Icons.favorite_border,
-                              color: isLiked ? Colors.red : null,
+                              color: isLiked ? Colors.pink : null,
                             ),
                             onPressed: () async {
                               final myUid = auth.currentUser!.uid;
+                              bool ok = false;
                               if (isLiked) {
-                                await context
+                                ok = await context
                                     .read<ProfileProvider>()
                                     .unlike(myUid, user.uid);
                                 if (context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
-                                        content: Text(
-                                            'Removed like for ${user.name}')),
+                                        content: Text(ok
+                                            ? 'Removed like for ${user.name}'
+                                            : 'Failed to unlike ${user.name}')),
                                   );
                                 }
                               } else {
-                                await context
+                                ok = await context
                                     .read<ProfileProvider>()
                                     .like(myUid, user.uid);
                                 if (context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
-                                        content: Text('Liked ${user.name}')),
+                                        content: Text(ok
+                                            ? 'Liked ${user.name}'
+                                            : 'Failed to like ${user.name}')),
                                   );
                                 }
                               }
@@ -110,9 +144,15 @@ class DashboardScreen extends StatelessWidget {
                           ),
                         ],
                       ),
-                    );
-                  },
-                ),
+                      onTap: () {
+                        Navigator.pushNamed(context, '/profile_detail',
+                            arguments: user);
+                      },
+                    ),
+                  );
+                },
+              ),
+      ),
     );
   }
 }
